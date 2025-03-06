@@ -1,0 +1,751 @@
+---
+title: "Bootstrap vs. Jackknife"
+subtitle: "A Methodological Replication of OYEYEMI's Paper"
+author: "Kun Liu"
+date: "November 24, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# rm(list = objects()); gc()   # empty the global environment
+
+if(!require( "pacman")){
+  install.packages("pacman")
+}    # prepare package which helps package loading
+
+pacman::p_load(
+  calibrate,
+  boot,
+  dplyr,
+  kableExtra,
+  knitr
+
+  ) # load necessary packages
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Summary
+This RMD file performs a methodological replication of G. M. OYEYEMI's article, "Comparison of Bootstrap and Jackknife methods of re-sampling in estimating population parameters". Using independently written R codes, I explain the concepts and prove formula in the introduction, and reproduces figures and tables in the article.
+
+## Section 1. Introduction
+
+This article is focused on the nonparametric estimation of statistical error, which includes the bias and standard error of an estimator, and the error rate of a data-based prediction rule. The nonparametric methods (Bootstrap, Jackknife, and Cross-Validation) require little in modelling, assumptions, or analysis, but can be applied to many situations, which is quite attractive for statistical practitioners.
+
+Here, we can prove equation (6) in the article:
+
+  $X^*$ is from the population of set {$x_1,x_2, ..., x_n$}, where each $x_i$ takes equal probability $\frac{1}{n}$.
+  
+  Thus, 
+
+$$
+\begin{align} 
+var.\bar{X}^* & = var.\bar{X}^*/n \\
+              & = \frac{1}{n} * \sum_{i = 1}^{n} (x_i - \bar{x})^2/n \\
+              & = \frac{1}{n^2} * \sum_{i = 1}^{n} (x_i - \bar{x})^2 
+\end{align}
+$$
+                  
+Next, we compare equation (7) with (2):
+
+For (2), 
+
+$\hat\sigma = [\frac{1}{n(n-1)}\sum_{i = 1}^n (x_i - \bar{x})^2]^{1/2}$
+
+For (7), $X_i^*$ ~ $\hat{F}$,
+
+$$
+\begin{align} 
+\hat\sigma_B & = [Var.\hat\theta (X_1^*, X_2^*, ..., X_n^*)]^{1/2} \\
+& = [Var(\sum_{i = 1}^n X_i/n)]^{1/2} \\
+& = \frac{1}{n^2}\sum_{i = 1}^{n} (x_i - \bar{x})^2 \\
+\end{align}
+$$        
+
+Comparing (7) with(2) we see that $[n/(n - 1)]^{1/2}\hat\sigma_B = \hat\sigma$ for $\hat\theta = \bar X$.
+
+Equation (8) can be proved as follows:
+
+$$
+\begin{align} 
+E[X_0 - \bar{X}]^2 & = E[X_0^2 - 2X_0\bar{X} + \bar{X}^2] \\
+& = EX_0^2 - 2\mu EX_0 + E\bar{X}^2 \\
+& = Var(X_0) + (EX_0)^2 - 2\mu^2 + Var\bar{X} + (E\bar{X})^2 \\
+& = \mu_2 + \mu^2 - 2\mu^2 + Var\bar{X} + \mu^2 \\
+& = \frac{n + 1}{n}\mu_2
+\end{align}
+$$ 
+An unbiased estimate of $\frac{n + 1}{n}\mu_2$ is:
+$$\frac{\sum_{i = 1}^{n} (x_i - \bar{x})^2}{n - 1} = n\hat\sigma^2 $$
+where  $\hat\sigma^2$ is defined in (2).
+
+Thus, an unbiased estimate of $\frac{n + 1}{n}\mu_2$ is:
+$$\frac{n + 1}{n}*n\hat\sigma^2 = (n + 1)\hat\sigma^2$$
+and the proof completed.
+
+## Section 2. The bootstrap
+
+In Figure 1, there are 15 points representing 15 entering classes, with x being average LSAT score of entering students at school i, and y being the average undergraduate GPA score of entering students at school i. 
+
+```{r echo=FALSE,fig.cap = "**Figure 1. The law school data**"}
+setwd("D:\\Thesis and project\\GitHub_Projects\\Simulation\\Bootstrap_vs_jackknife")
+address<-paste(getwd(), "/LawSchool.txt", sep="")
+LawSchool<-read.table(file=address, sep="\t")
+attach(LawSchool)
+
+LawSchool <- as.data.frame(LawSchool)
+
+par(mfrow=c(1,1))
+plot(LSAT, GPA, pch=20, cex=1, xlim=c(540, 680), ylim=c(2.7, 3.5), col="red")
+textxy(LSAT, GPA,  1:length(LSAT), offset=0.75, cex=0.75)
+```
+
+
+The observed Pearson correlation coefficient for the LawSchool data is `r round(cor(LSAT,GPA),3)`.
+To apply the bootstrap idea to the Pearson correlation coefficient, the following R codes can be used to perform bootstrap method for 1000 times of resampling:
+
+```{r}
+B = 1000
+
+rho.estimate<- numeric(B)
+
+set.seed(2000)
+for (i in 1:B){
+  bootsample <- LawSchool[sample(nrow(LawSchool),15,replace=TRUE),]
+  rho.estimate[i] <- cor(bootsample$LSAT,bootsample$GPA)
+}
+
+sigma.rho.hat.boot <- sqrt(var(rho.estimate))
+
+sigma.rho.hat.boot
+```
+
+Figure 2 shows B = 1000 bootsrap replications of $\hat{\rho}^*$ for the law school data. The abscissa is plot in terms of $\hat{\rho}^*$ - $\hat{\rho}$ = $\hat{\rho}^*$ - .776. Using the bootstrap method, the standard error of $\hat{\rho}$ is $\hat{\sigma}_{B}$ = `r round(sigma.rho.hat.boot,3)`, compared with the normal theory estimate which is .115.
+
+```{r echo=FALSE, fig.cap = "**Figure 2. Histogram of B = 1000 bootstrap replications**"}
+rho.hat <-cor(LSAT,GPA)
+hist(rho.estimate-rho.hat, col="lightblue",
+     main="Bootstrap samples from data LawSchool",
+     xlab=expression(paste(hat(rho),"*", " - ",hat(rho))))
+
+```
+
+### Reproduction of Table 1
+The good thing about the bootstrap is that it can be applied to any statistic as to the correlation coefficient. In the next example, the statistic is the 25 percent trimmed mean for a sample of size n = 15.The true distributions are standard normal N(0,1) and negative exponential, respectively. In both cases,$\hat{\sigma}_{B}$ is calculated with B = 200 bootstrap replications. The results are summarized in Table 1.
+
+Firstly, the statistic function is defined:
+```{r message = FALSE,warning = FALSE}
+# define the statistic
+trimmmed.mean.statistic<-function(Pop,indices){
+  Pop <- Pop[indices]
+  m<-mean(Pop,trim = 0.25)
+  return(m)
+}
+
+```
+
+Secondly, using bootstrap method, we can get $\hat{\sigma}_{B}$. To get the variation of $\hat{\sigma}_{B}$, the bootstrap simulation was performed 200 times to calculate the average, standard deviation, and coefficient variation of $\hat{\sigma}_{B}$. 
+```{r}
+# for normal distribution
+sigma.boot.normal <- numeric(200)
+set.seed(512)
+for (i in 1:200){
+  data.normal <- rnorm(15)
+  boot.results<-boot(data.normal, trimmmed.mean.statistic, R=200)
+
+
+  sigma.boot.normal[i] <- sqrt(var(boot.results$t))
+}
+
+average.boot.normal = mean(sigma.boot.normal)
+sd.boot.normal = sqrt(var(sigma.boot.normal))
+cv.boot.normal = sqrt(var(sigma.boot.normal))/mean(sigma.boot.normal)
+```
+
+```{r}
+# for negative exponential distribution
+sigma.boot.exp <- numeric(200)
+set.seed(1024)
+for (i in 1:200){
+  data.neg.exp <-rexp(15)
+  boot.results<-boot(data.neg.exp, trimmmed.mean.statistic, R=200)
+  # hist(boot.results$t, col="lightblue",
+  #      main="trimmed mean of normal distribution",
+  #      xlab=expression("trimmed mean"))
+  
+  sigma.boot.exp[i] <- sqrt(var(boot.results$t))
+}
+
+average.boot.exp = mean(sigma.boot.exp)
+sd.boot.exp = sqrt(var(sigma.boot.exp))
+cv.boot.exp = sqrt(var(sigma.boot.exp))/mean(sigma.boot.exp)
+```
+
+The SE and the standard deviation of SE are then estimated using Jackknife method:
+```{r}
+# Jackknife method for standard normal distribution
+sigma.jack.normal <- numeric(200)
+set.seed(600)
+for (i in 1:200){
+  data.normal <- rnorm(15)
+  theta.minus <- numeric(15)
+  for (j in 1:15){
+    data <-data.normal[-j]
+    theta.minus[j] = mean(data,trim = 0.25)
+  }
+  theta.dot <- mean(theta.minus)
+  sigma.jack.normal[i] = sqrt(14/15*sum((theta.minus-theta.dot)^2))
+}
+
+average.jack.normal = mean(sigma.jack.normal)
+sd.jack.normal = sqrt(var(sigma.jack.normal))
+cv.jack.normal = sqrt(var(sigma.jack.normal))/mean(sigma.jack.normal)
+
+average.jack.normal;sd.jack.normal;cv.jack.normal
+```
+
+```{r}
+# Jackknife method for negative exponential distribution
+sigma.jack.exp <- numeric(200)
+set.seed(700)
+for (i in 1:200){
+  data.neg.exp <-rexp(15)
+  theta.minus <- numeric(15)
+  for (j in 1:15){
+    data <-data.neg.exp[-j]
+    theta.minus[j] = mean(data,trim = 0.25)
+  }
+  theta.dot <- mean(theta.minus)
+  sigma.jack.exp[i] = sqrt(14/15*sum((theta.minus-theta.dot)^2))
+}
+
+average.jack.exp = mean(sigma.jack.exp)
+sd.jack.exp = sqrt(var(sigma.jack.exp))
+cv.jack.exp = sqrt(var(sigma.jack.exp))/mean(sigma.jack.exp)
+
+average.jack.exp;sd.jack.exp;cv.jack.exp
+```
+Next, using Monte Carlo method, the true value of the sd of $\hat\rho$ was estimated. 
+
+```{r}
+## getting the true value of SE of trimmed mean
+### normal distribution
+trimmed.mean.norm <- numeric(5000)
+set.seed(4)
+for (i in 1:5000){
+  data <-rnorm(15)
+  trimmed.mean.norm[i] <- mean(data,trim = 0.25)
+}
+true.norm <- sqrt(var(trimmed.mean.norm)) #true vlue of the SE of trimmed mean of normal distribution
+### exp distribution
+trimmed.mean.exp <- numeric(10000)
+set.seed(1000)
+for (i in 1:10000){
+  data <-rexp(15)
+  trimmed.mean.exp[i] <- mean(data,trim = 0.25)
+}
+true.exp <- sqrt(var(trimmed.mean.exp)) #true vlue of the SE of trimmed mean of exponentional distribution
+
+```
+
+
+
+The results are summarized in the table below:
+```{r table1, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+
+boot.results <- c(average.boot.normal,sd.boot.normal,cv.boot.normal,
+                  average.boot.exp,sd.boot.exp, cv.boot.exp)
+
+jack.results <- c(average.jack.normal,sd.jack.normal,cv.jack.normal,
+                  average.jack.exp,sd.jack.exp,cv.jack.exp)
+true.values<- c(true.norm,NA,NA,true.exp,NA,NA)
+
+table1<- rbind(boot.results,jack.results,true.values)
+table1<-as.data.frame(table1)
+rownames(table1) = c("Bootstrap $\\hat{\\sigma}_{B}$","Jackknife $\\hat{\\sigma}_{J}$", "True")
+colnames(table1) = c( "Ave", "Sd", "Coeff Var","Ave", "Sd", "Coeff Var")
+kable(table1, format = "html",
+      caption = "Table 1. Sampling Experiment Comparing the Bootstrap and Jackknife Estimates of Standard Error for the 25% Trimmed Mean, sample Size n = 15",
+      digits = c(3, 3, 2, 3,3,2), align = "cccccc") %>%
+  kable_styling(full_width = F, position = "left") %>%
+  add_header_above(c(" " = 1, "F Standard Normal" = 3, "F Negative Exponential" = 3))
+```
+Form the results, we can see that the Jackknife estimate of SE is also nearly unbiased in both cases, but has higher variability than the bootstrap estimate, as shown by its higher coefficient of variation.
+
+### Reproduction of Table 2
+The next example returns to the statistic $\hat\rho$. The true distribution F is bivariate normal, the true correlation $\rho$ = .5, and the sample size is $n$ = 14. In Table 2, the left side refers to $\hat\rho$, while the right side refers to $\hat\phi$ = $tanh^{-1}$ $\hat\rho$.
+
+Firstly, functions were defined to generate samples and calculate $\hat\rho$.
+
+```{r}
+# function to generate bivariate normal
+gen.xy =function(n, rho=0.5, seed=NULL) {
+  if(!is.null(seed))set.seed(seed)
+  z1 =rnorm(n)
+  z2 =rnorm(n)
+  x = z1
+  y = rho*z1+ sqrt(1-rho^2)*z2
+  return(cbind(x,y))
+}
+
+# function to calculate rho
+rho.statistic<-function(Pop,indices){
+  Pop <- Pop[indices,]
+  rho<-cor(Pop[,1],Pop[,2],method="pearson")
+  return(rho)
+}
+
+```
+
+Next, bootstrap method was applied for B = 128 and B = 521 steps. Each type was simulated 200 times to calculate the average of average of the standard error, as well as the standard deviation of standard error for $\hat\rho$ and $\hat\phi$.
+
+```{r}
+# B = 128 for rho-hat and phi-hat
+sigma.boot.rho.128 <- numeric(200)
+sigma.boot.phi.128 <- numeric(200)
+
+set.seed(1240)
+for (i in 1:200){
+  data <- gen.xy(14)
+  boot.results<-boot(data, rho.statistic, R=128)
+  
+  phi.boot.results<- atanh(boot.results$t)
+  sigma.boot.rho.128[i] <- sqrt(var(boot.results$t))
+  sigma.boot.phi.128[i] <- sqrt(var(phi.boot.results))
+}
+```
+
+SO for B = 128, the average of SE, the SD of the SE of $\hat\rho$, and the CV are:
+```{r}
+ave.boot.rho.128<-mean(sigma.boot.rho.128)
+sd.boot.rho.128<- sqrt(var(sigma.boot.rho.128))
+cv.boot.rho.128 <- sd.boot.rho.128/ave.boot.rho.128
+ave.boot.rho.128;sd.boot.rho.128;cv.boot.rho.128
+```
+
+
+For B = 128, the average of SE, the SD of the SE of $\hat\phi$, and the CV are:
+
+```{r}
+ave.boot.phi.128<-mean(sigma.boot.phi.128)
+sd.boot.phi.128<- sqrt(var(sigma.boot.phi.128))
+cv.boot.phi.128 <- sd.boot.phi.128/ave.boot.phi.128
+ave.boot.phi.128;sd.boot.phi.128;cv.boot.phi.128
+```
+
+Similarly, we can repeat the same approach for B = 512:
+
+```{r}
+# B = 512 for rho-hat and phi-hat
+sigma.boot.rho.512 <- numeric(200)
+sigma.boot.phi.512 <- numeric(200)
+
+set.seed(1400)
+for (i in 1:200){
+  data <- gen.xy(14)
+  boot.results<-boot(data, rho.statistic, R=512)
+  
+  phi.boot.results<- atanh(boot.results$t)
+  sigma.boot.rho.512[i] <- sqrt(var(boot.results$t))
+  sigma.boot.phi.512[i] <- sqrt(var(phi.boot.results))
+}
+```
+
+For B = 512, for $\hat\rho$:
+```{r}
+ave.boot.rho.512<-mean(sigma.boot.rho.512)
+sd.boot.rho.512<- sqrt(var(sigma.boot.rho.512))
+cv.boot.rho.512 <- sd.boot.rho.512/ave.boot.rho.512
+ave.boot.rho.512;sd.boot.rho.512;cv.boot.rho.512
+```
+
+For B = 512, For $\hat\phi$:
+
+```{r}
+ave.boot.phi.512<-mean(sigma.boot.phi.512)
+sd.boot.phi.512<- sqrt(var(sigma.boot.phi.512))
+cv.boot.phi.512 <- sd.boot.phi.128/ave.boot.phi.512
+ave.boot.phi.512;sd.boot.phi.128;cv.boot.phi.512
+```
+Next, we can estimate these statistics using Jackknife method:
+
+```{r}
+# Jackknife method for standard error estimates for rho-hat
+sigma.jack.rho <- numeric(200)
+set.seed(70)
+for (i in 1:200){
+  data <- gen.xy(14)
+  theta.minus <- numeric(14)
+  for (j in 1:14){
+    x<-data[-j,]
+    theta.minus[j] = cor(x[,1],x[,2],method="pearson")
+  }
+  theta.dot <- mean(theta.minus)
+  sigma.jack.rho[i] = sqrt(13/14*sum((theta.minus-theta.dot)^2))
+}
+
+average.jack.rho = mean(sigma.jack.rho)
+sd.jack.rho = sqrt(var(sigma.jack.rho))
+cv.jack.rho = sqrt(var(sigma.jack.rho))/mean(sigma.jack.rho)
+
+average.jack.rho;sd.jack.rho;cv.jack.rho
+```
+```{r}
+# Jackknife method for standard error estimates for phi-hat
+sigma.jack.phi <- numeric(200)
+set.seed(70)
+for (i in 1:200){
+  data <- gen.xy(14)
+  theta.minus <- numeric(14)
+  for (j in 1:14){
+    x<-data[-j,]
+    theta.minus[j] = atanh(cor(x[,1],x[,2],method="pearson"))
+  }
+  theta.dot <- mean(theta.minus)
+  sigma.jack.phi[i] = sqrt(13/14*sum((theta.minus-theta.dot)^2))
+}
+
+average.jack.phi = mean(sigma.jack.phi)
+sd.jack.phi = sqrt(var(sigma.jack.phi))
+cv.jack.phi = sqrt(var(sigma.jack.phi))/mean(sigma.jack.phi)
+
+average.jack.phi;sd.jack.phi;cv.jack.phi
+```
+
+Next, the estimates will be obtained using Normal Theory:
+
+```{r}
+# Using normal theory for standard error estimates for rho-hat
+sigma.normal.rho <-numeric(200)
+set.seed(1995)
+for (i in 1:200){
+  data <- gen.xy(14)
+  hat.rho <- cor(data[,1],data[,2])
+  sigma.normal.rho[i] <- (1-hat.rho^2)/sqrt(11)
+}
+
+average.normal.rho = mean(sigma.normal.rho)
+sd.normal.rho = sqrt(var(sigma.normal.rho))
+cv.normal.rho = sd.normal.rho/average.normal.rho
+
+average.normal.rho;sd.normal.rho;cv.normal.rho
+```
+```{r}
+# Using normal theory for standard error estimates for phi-hat
+average.normal.phi <- 1/sqrt(14-3)
+sd.normal.phi <- 0
+cv.normal.phi <- 0 
+
+average.normal.phi;sd.normal.phi;cv.normal.phi
+```
+
+Finally, by using Monte Carlo method we can calculate RMSE for each line:
+```{r}
+# Monte Carlo method to get true se of rho and phi
+rho.hat = numeric(5000)
+phi.hat = numeric(5000)
+for (i in 1:5000){
+  data <- gen.xy(14)
+  rho.hat[i] = cor(data[,1],data[,2],method="pearson")
+  phi.hat[i] = atanh(rho.hat[i])
+}
+sigma.rho.true <- sqrt(var(rho.hat)) #true sd of se of rho
+sigma.phi.true <- sqrt(var(phi.hat)) #true sd of se of rho
+```
+
+```{r}
+# Monte Carlo method to get RMSE values for B = 128
+
+store1 <- numeric(5000)
+store2 <- numeric(5000)
+
+set.seed(12401)
+for (i in 1:5000){
+  data <- gen.xy(14)
+  boot.results<-boot(data, rho.statistic, R=128)
+  
+  phi.boot.results<- atanh(boot.results$t)
+  store1[i] <- sqrt(var(boot.results$t))
+  store2[i] <- sqrt(var(phi.boot.results))
+}
+
+# rmse
+rmse.rho.128 <- sqrt(sum((store1-sigma.rho.true)^2)/4999)
+rmse.phi.128 <- sqrt(sum((store2-sigma.phi.true)^2)/4999)
+
+rmse.rho.128;rmse.phi.128
+```
+
+```{r}
+# Monte Carlo method to get RMSE values for B = 512
+
+store3 <- numeric(5000)
+store4 <- numeric(5000)
+
+set.seed(12881)
+for (i in 1:5000){
+  data <- gen.xy(14)
+  boot.results<-boot(data, rho.statistic, R=512)
+  
+  phi.boot.results<- atanh(boot.results$t)
+  store3[i] <- sqrt(var(boot.results$t))
+  store4[i] <- sqrt(var(phi.boot.results))
+}
+
+# rmse
+rmse.rho.512 <- sqrt(sum((store3-sigma.rho.true)^2)/4999)
+rmse.phi.512 <- sqrt(sum((store4-sigma.phi.true)^2)/4999)
+
+rmse.rho.512;rmse.phi.512
+```
+
+```{r}
+# Monte Carlo method to get RMSE values for Jackknife method
+
+store5 <- numeric(5000)
+store6 <- numeric(5000)
+
+set.seed(128810)
+
+for (i in 1:5000){
+  data <- gen.xy(14)
+  theta.minus <- numeric(14)
+  for (j in 1:14){
+    x<-data[-j,]
+    theta.minus[j] = cor(x[,1],x[,2],method="pearson")
+  }
+  theta.dot <- mean(theta.minus)
+  store5[i] = sqrt(13/14*sum((theta.minus-theta.dot)^2))
+}
+
+set.seed(7036)
+for (i in 1:5000){
+  data <- gen.xy(14)
+  theta.minus <- numeric(14)
+  for (j in 1:14){
+    x<-data[-j,]
+    theta.minus[j] = atanh(cor(x[,1],x[,2],method="pearson"))
+  }
+  theta.dot <- mean(theta.minus)
+  store6[i] = sqrt(13/14*sum((theta.minus-theta.dot)^2))
+}
+# rmse 
+rmse.rho.jack <- sqrt(sum((store5-sigma.rho.true)^2)/4999)
+rmse.phi.jack <- sqrt(sum((store6-sigma.phi.true)^2)/4999)
+
+rmse.rho.jack;rmse.phi.jack
+```
+
+```{r}
+# Monte Carlo method to get RMSE values for normal theory estimates
+
+store7 <- numeric(5000)
+
+set.seed(1996)
+for (i in 1:5000){
+  data <- gen.xy(14)
+  hat.rho <- cor(data[,1],data[,2])
+  store7[i] <- (1-hat.rho^2)/sqrt(11)
+}
+
+# rmse
+rmse.rho.normal <- sqrt(sum((store7-sigma.rho.true)^2)/4999)
+rmse.phi.normal <- 0.302-sigma.phi.true
+
+rmse.rho.normal;rmse.phi.normal
+```
+
+The results are summarized in the following table:
+```{r table2, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+
+boot.results.128 <- c(ave.boot.rho.128,sd.boot.rho.128,cv.boot.rho.128,rmse.rho.128,
+                      ave.boot.phi.128,sd.boot.phi.128,cv.boot.phi.128,rmse.phi.128)
+
+boot.results.512 <- c(ave.boot.rho.512,sd.boot.rho.512,cv.boot.rho.512,rmse.rho.512,
+                      ave.boot.phi.512,sd.boot.phi.512,cv.boot.phi.512,rmse.phi.512)
+jack.results.table2 <- c(average.jack.rho,sd.jack.rho,cv.jack.rho,rmse.rho.jack,
+                  average.jack.phi,sd.jack.phi,cv.jack.phi,rmse.phi.jack)
+
+normal.results.table2 <- c(average.normal.rho,sd.normal.rho,cv.normal.rho,rmse.rho.normal,
+                  average.normal.phi,sd.normal.phi,cv.normal.phi,rmse.phi.normal)
+
+true.sd <- c(sigma.rho.true, NA, NA, NA, sigma.phi.true, NA, NA, NA)
+
+table2<- rbind(boot.results.128,boot.results.512,jack.results.table2, normal.results.table2, true.sd)
+table2<-as.data.frame(table2)
+rownames(table2) = c("Bootstrap B = 128","Bootstrap B = 512", "Jackknife", "Normal Theory", "True Standard Error")
+colnames(table2) = c( "Ave", "Std Dev", "CV","RMSE","Ave", "Std Dev", "CV","RMSE")
+kable(table2, format = "html",
+      caption = "Table 2. Estimates of Standard Error for the Correlation Coefficient $\\hat\\rho$ and $\\hat\\phi$; Sample size n = 14, Distribution F Bivariate Normal with true correlation $\\hat\\rho$ = .5",
+      digits = c(3, 3, 2,3, 3,3,2,3), align = "cccccc") %>%
+  kable_styling(full_width = F, position = "left") %>%
+  add_header_above(c(" " = 1, "Standard error eatimate for $\\hat\\rho$" = 4, "Standard error eatimate for $\\hat\\phi$" = 4))
+```
+## Section 3. The Jackknife
+
+We have already applied the Jackknife method in the previous two examples. The Jackknife estimate of a statistic is
+$$\hat\theta_{Jack} = n\hat\theta - (n - 1)\hat\theta_{(.)}$$
+where $$\hat\theta_{-i} = \hat\theta(x_1, ..., x_{i-1}, x_{i+1}, ..., x_n)$$
+and $$\hat\theta_{(.)} = \frac{1}{n}\sum_{i=1}^n\hat\theta_{-i} $$ 
+
+And, most importantly, the standard error of the statistic can be estimated by Jackknife method using the following formula:
+$$\hat\sigma_J = [\frac{n-1}{n}\sum_{i = 1}^n (\hat\theta_{-i} - \hat\theta)]^{1/2}$$
+In the previous examples, simulations were done 200 times, for each time, the standard error of the statistic was estimated by Jackknife method. Then the average of the standard error was calculated, as well as the standard deviation of the standard error and CV.
+
+Intuitively, Jackknife method resamples $n$ times, for each time the $i^{th}$ point was given weight 0, and the other points were given weight $\frac{1}{n-1}$. In general there are $n$ jackknife points (if not the grouped Jackknife), compared to ${2n-1\choose k}$ bootstrap points.
+
+In practice, the bootstrap method to calculate the SE of a statistic is in general very complicated and can only be estimated by Monte Carlo methods. The Jackknife method, in contrast, approximates the SE by a linear function of the assigned weights. The linear function is as follows:
+$$\hat\theta_L(\mathbf{P})= \hat\theta_{(.)} + (\mathbf{P} - \mathbf{P}^0)' \mathbf{U}$$
+where **U** is a column vector with coordinates $U_i = (n - 1)(\hat\theta_{(.)} - \hat\theta_{(-i)})$. Then, the Jackknife estimate of SE equals
+$$\hat\sigma_J = [\frac{n-1}{n}var.\hat\theta_L(\mathbf{P}^*)]^{1/2}$$
+which is $[n/(n-1)]^{1/2}$ times the bootstrap estimate of the standard error for $\hat\theta_L$.
+
+## Section 4. The Delta Method, Influence functions, and the Infinitesimal Jackknife
+
+Instead of using the linear approximation $\hat\theta_L(\mathbf{P})$, we can use first-order Taylor series expansion for $\hat\theta(\mathbf{p})$ about the point $\mathbf{P} = \mathbf{P}^0$, which generated the idea of Jaeckel's _infinitesimal jackknife_. This idea also employs the _empirical influence function_, which is a non-parametric estimate of the true influence function. 
+
+The _delta method_ is another option to estimate SE's. This method applies to statistics which are functions of observed averages. For example, the correlation $\hat\rho$ is a function of 5 averages: $\bar{X}$, $\bar{Y}$,$\overline{XY}$,$\bar{X^2}$,and $\bar{Y^2}$. Proved by Efron on 1981, for statistics which are functions of observed averages, the nonparametric delta method an dthe infinitesimal jackknife give the same estimate of SE.
+
+In this case, the infinitesimal jackknife, the delta method, and the empirical influence function approach are actually three name for the same approach.
+
+## Section 5. Nonparametric confidence intervals
+
+Bootstrap and jackknife estimates of the SE can be used to set confidecne intervals using the crude form $\hat\theta\pm z_{\alpha}\hat\sigma$. However, in samll-sample parametric situations, confidence intervals are often highly asymmetric about $\hat\theta$. THis section discusses some nonparametric methods to assigning confidence intervals, which attempt to capture the correct asymmetry.
+
+There are two ways of forming nonparametric CI's from the bootyystrap histogram and the first method is the _percentile method_. Using the law school example:
+```{r}
+B = 1000
+
+set.seed(20045)
+
+boot.results.law<-boot(LawSchool, rho.statistic, R=B)
+
+alpha = 0.16
+q.lo = quantile(boot.results.law$t, probs = alpha)
+
+q.hi = quantile(boot.results.law$t, probs = 1 - alpha)
+
+q.lo;q.hi
+```
+With B = 1000, the 68% interval is $\rho \in [.64, .90] = [\hat\rho - .14, \hat\rho + .12]$.
+
+From Figure 2, it should be noticed that the median of the bootstrap distribution is substantially higher than $\hat\rho$. In fact, from the last bootstrapping, there are `r sum(boot.results.law$t < cor(LSAT,GPA))` out of 1000 bootstrap replications having $\hat\rho^* < \hat\rho$. 
+
+```{r}
+sum(boot.results.law$t < cor(LSAT,GPA))
+```
+
+Thus, the _bias-corrected percentile method_ makes an adjustment for this type of bias. The bias-corrected putative $1-2\alpha$ central confidence interval is:
+
+```{r}
+z0 <- qnorm(sum(boot.results.law$t < cor(LSAT,GPA))/1000)
+
+alpha <- 0.16
+
+z.alpha <- qnorm(1-alpha)
+
+q.lo.corrected <- quantile(boot.results.law$t, prob = pnorm(2*z0 - z.alpha))
+q.hi.corrected <- quantile(boot.results.law$t, prob = pnorm(2*z0 + z.alpha))
+
+q.lo.corrected;q.hi.corrected
+```
+
+So the bias-corrected putative $1-2\alpha$ central confidence interval is $\rho \in [.62, .89] = [\hat\rho - .16, \hat\rho + .11]$, which is different from the uncorrected percentile.
+
+### Reproduction of Table 3
+
+In Table 3, 10 sampling experiments were performed with the true distribution $F$ being bivariate normal and $\rho = .5$. 
+
+
+```{r}
+# 10 trials
+seed <-20121:20130
+hat.rho <-numeric(10)
+normal.theory.ci<- vector(mode="character", length=10)
+percentile.ci<- vector(mode="character", length=10)
+corrected.ci<- vector(mode="character", length=10)
+
+for (i in 1:10){
+  sample <- gen.xy(15, 0.5, seed[i])
+  alpha = 0.16
+  
+  hat.rho[i] <- cor(sample[,1],sample[,2])
+  
+  ## Normal Theory
+  normal.theory.ci.lo <- tanh(atanh(hat.rho[i]) + qnorm(alpha)/sqrt(15)) - hat.rho[i] # rho hat is deducted
+  normal.theory.ci.hi <- tanh(atanh(hat.rho[i]) + qnorm(1-alpha)/sqrt(15)) - hat.rho[i] # rho hat is deducted
+  normal.theory.ci[i]<- paste("(",round(normal.theory.ci.lo,2),",",
+                           round(normal.theory.ci.hi,2),")",sep = "") 
+  ## Percentile method
+  boot.results<-boot(sample, rho.statistic, R=1000)
+
+  q.lo = quantile(boot.results$t, probs = alpha)
+
+  q.hi = quantile(boot.results$t, probs = 1 - alpha)
+
+  percentile.ci[i]<- paste("(",round(q.lo - hat.rho[i],2),",",round(q.hi - hat.rho[i],2),")", sep = "") # rho hat is deducted
+
+ ## Bias-corrected percentile method
+  z0 <- qnorm(sum(boot.results$t < hat.rho[i])/1000)
+
+  z.alpha <- qnorm(1-alpha)
+  
+  q.lo.corrected <- quantile(boot.results$t, prob = pnorm(2*z0 - z.alpha))
+  q.hi.corrected <- quantile(boot.results$t, prob = pnorm(2*z0 + z.alpha))
+  
+  corrected.ci[i] <- paste("(", round(q.lo.corrected - hat.rho[i],2),
+                          ",",round(q.hi.corrected - hat.rho[i],2),")",sep = "") # rho hat is deducted
+ 
+
+}
+
+
+```
+
+The results are summarized in the table below:
+
+```{r table3, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+
+trial <- 1:10
+
+table3<- cbind(trial,round(hat.rho, 2),normal.theory.ci,percentile.ci,corrected.ci)
+table3<-as.data.frame(table3)
+# rownames(table3) = c("Bootstrap B = 128","Bootstrap B = 512", "Jackknife")
+colnames(table3) = c( "Trial", "$\\hat\\rho$", "Normal Theory","Percentile","Biase-Corrected")
+
+kable(table3, format = "html",
+      caption = "Table 3. Central 68% CI for $\\rho$, 10 trials of $X_1, ..., X_{15}$ bivariate normal with true $\\rho$ = .5. Each interval has $\\hat\\rho$ substracted from both endpoints ",
+      align = "ccccc") %>%
+  kable_styling(full_width = F, position = "left") 
+```
+
+## Section 6. Bias estimation
+
+Quenouille's estimate of bias is
+$$\hat\beta_{J} = (n-1)(\hat\theta_{(.)} - \hat\theta)$$
+The bootstrap estimate of $\beta$ is 
+$$\hat\beta_B = E_*(\theta(\hat{F}^*) - \theta(\hat{F}))$$
+In practic $\hat\beta_B$ must be approximated by Monte Carlo methods.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
